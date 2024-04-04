@@ -5,6 +5,7 @@
 #include <deque>
 #include <string>
 #include <mutex>
+#include <filesystem>
 
 #include "../export.h"
 #include "renderer.h"
@@ -20,7 +21,7 @@ namespace capture {
 class CAPTURE_API Controller final : public IMFSourceReaderCallback {
  public:
   void Init(const HWND& wnd);
-  void Open(const Microsoft::WRL::ComPtr<IMFActivate>& activate);
+  void Open(const std::filesystem::path& path);
   void Close();
 
   void SetMediaType(const uint32_t type_index);
@@ -40,6 +41,9 @@ class CAPTURE_API Controller final : public IMFSourceReaderCallback {
                                          IMFSample* pSample) override;
 
  private:
+  Microsoft::WRL::ComPtr<IMFMediaSource> CreateMediaSource(
+      const std::filesystem::path& path);
+
   Microsoft::WRL::ComPtr<IMFSourceReader> reader_ = nullptr;
   Renderer renderer_{};
 

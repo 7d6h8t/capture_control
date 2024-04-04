@@ -11,19 +11,15 @@ using namespace capture;
 
 void Controller::Init(const HWND& wnd) { renderer_.Init(wnd); }
 
-void Controller::Open(const Microsoft::WRL::ComPtr<IMFActivate>& activate) {
+void Controller::Open(const std::filesystem::path& path) {
   Close();
 
   std::lock_guard<std::mutex> lock(mutex_);
 
-  Microsoft::WRL::ComPtr<IMFMediaSource> source = nullptr;
-  Microsoft::WRL::ComPtr<IMFAttributes> attributes = nullptr;
-
-  com::ThrowIfFailed(activate->ActivateObject(
-      __uuidof(IMFMediaSource),
-      reinterpret_cast<void**>(source.GetAddressOf())));
-
+  Microsoft::WRL::ComPtr<IMFMediaSource> source = CreateMediaSource(path);
   auto dxgi_manager = renderer_.CreateDXGIDeviceManager(source);
+
+  Microsoft::WRL::ComPtr<IMFAttributes> attributes = nullptr;
 
   com::ThrowIfFailed(MFCreateAttributes(&attributes, 5));
   com::ThrowIfFailed(attributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, this));
@@ -162,4 +158,27 @@ HRESULT STDMETHODCALLTYPE Controller::OnReadSample(HRESULT hrStatus,
 
   if (SUCCEEDED(hr)) ReadFrame();
   return hr;
+}
+
+Microsoft::WRL::ComPtr<IMFMediaSource> capture::Controller::CreateMediaSource(
+    const std::filesystem::path& path) {
+  // ref :
+  // https://learn.microsoft.com/ko-kr/windows/win32/medfound/using-the-source-resolver
+  MF_OBJECT_TYPE ObjectType = MF_OBJECT_INVALID;
+
+  Microsoft::WRL::ComPtr<IMFSourceResolver> source_resolver = nullptr;
+  Microsoft::WRL::ComPtr<IUnknown> com_resource = nullptr;
+
+  com::ThrowIfFailed(MFCreateSourceResolver(source_resolver.GetAddressOf()));
+
+  com::ThrowIfFailed(source_resolver->CreateObjectFromURL(
+      path.c_str(), MF_RESOLUTION_MEDIASOURCE, nullptr, &ObjectType,
+      com_resource.GetAddressOf()));
+
+  Microsoft::WRL::ComPtr<IMFMediaSource> source = nullptr;
+  com::ThrowIfFailed(com_resource->QueryInterface(
+      __uuidof(IMFMediaSource),
+      reinterpret_cast<void**>(source.GetAddressOf())));
+
+  return source;
 }
